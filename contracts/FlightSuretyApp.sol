@@ -26,6 +26,14 @@ contract FlightSuretyApp {
 
     address private contractOwner; // Account used to deploy contract
 
+    /**
+     * This is used on all state changing functions to pause the app contract in
+     * the event there is an issue that needs to be fixed
+     * see also requireIsOperational()
+     * see also isOperational()
+     */
+    bool private operational;
+
     struct Flight {
         bool isRegistered;
         uint8 statusCode;
@@ -48,7 +56,7 @@ contract FlightSuretyApp {
      */
     modifier requireIsOperational() {
         // Modify to call data contract's status
-        require(true, "Contract is currently not operational");
+        require(operational, "Contract is currently not operational");
         _; // All modifiers require an "_" which indicates where the function body will be added
     }
 
@@ -75,8 +83,22 @@ contract FlightSuretyApp {
     /*                                       UTILITY FUNCTIONS                                  */
     /********************************************************************************************/
 
+    /**
+     * @dev Get operating status of contract
+     *
+     * @return A bool that is the current operating status
+     */
     function isOperational() public pure returns (bool) {
-        return true; // Modify to call data contract's status
+        return operational;
+    }
+
+    /**
+     * @dev Sets contract operations on/off
+     *
+     * When operational mode is disabled, all write transactions except for this one will fail
+     */
+    function setOperatingStatus(bool mode) external requireContractOwner {
+        operational = mode;
     }
 
     /********************************************************************************************/
