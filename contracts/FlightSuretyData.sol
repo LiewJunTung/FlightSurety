@@ -25,6 +25,8 @@ contract FlightSuretyData {
     mapping(address => Airline) private airlines;
     uint16 private activeAirlinesNum; // the maximum number of airliners can be active is 65535, should be fine. There are 5k airlines with ICAO codes currently
 
+    mapping(address => bool) private authorisedAppContracts; // app contracts that can interact with this data contract
+
     struct Flight {
         bool isRegistered;
         uint8 statusCode;
@@ -72,6 +74,14 @@ contract FlightSuretyData {
         _;
     }
 
+    /**
+     * @dev Modifier that require authorised app contract to access
+     */
+    modifier requireAuthorizedAppContract(){
+        require(authorisedAppContract[msg.sender], "Unauthorised access");
+        _;
+    }
+
     /********************************************************************************************/
     /*                                       UTILITY FUNCTIONS                                  */
     /********************************************************************************************/
@@ -92,6 +102,23 @@ contract FlightSuretyData {
      */
     function setOperatingStatus(bool mode) external requireContractOwner {
         operational = mode;
+    }
+
+    /**
+     * @dev Add authorised app contracts
+     *
+     * Only authorised app contracts can access this data contract
+     */
+    function addAuthorisedContract(address appContractAddress) external requireContractOwner {
+        authorisedAppContracts[appContractAddress] = true;
+    }
+    /**
+     * @dev Remove authorised app contracts
+     *
+     * Remove obsolete/compromised app contracts.
+     */
+    function removeAuthorisedContract(address appContractAddress) external requireContractOwner {
+        delete authorisedAppContracts[appContractAddress];
     }
 
     /********************************************************************************************/
