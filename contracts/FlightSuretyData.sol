@@ -10,7 +10,15 @@ contract FlightSuretyData {
     /********************************************************************************************/
 
     address private contractOwner; // Account used to deploy contract
-    bool private operational = true; // Blocks all state changes throughout the contract if false
+    bool private operational; // Blocks all state changes throughout the contract if false
+
+    struct Flight {
+        bool isRegistered;
+        uint8 statusCode;
+        uint256 updatedTimestamp;
+        address airline;
+    }
+    mapping(bytes32 => Flight) private flights;
 
     /********************************************************************************************/
     /*                                       EVENT DEFINITIONS                                  */
@@ -21,6 +29,7 @@ contract FlightSuretyData {
      *      The deploying account becomes contractOwner
      */
     constructor() public {
+        operational = true;
         contractOwner = msg.sender;
     }
 
@@ -80,7 +89,9 @@ contract FlightSuretyData {
      *      Can only be called from FlightSuretyApp contract
      *
      */
-    function registerAirline() external pure {}
+    function registerAirline() external pure {
+
+    }
 
     /**
      * @dev Buy insurance for a flight
