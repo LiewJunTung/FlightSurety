@@ -12,6 +12,19 @@ contract FlightSuretyData {
     address private contractOwner; // Account used to deploy contract
     bool private operational; // Blocks all state changes throughout the contract if false
 
+    struct Airline {
+        string name; // name of airline
+        
+        mapping(address => bool) votes;
+        uint16 numberOfVotes; // index to keep track of the votes
+
+        bool isRegistered; // has the consensus of 50% of other registered airlines
+        bool isActive; // has paid 10 ether to contract owner and can participate in contract
+    }
+
+    mapping(address => Airline) private airlines;
+    uint16 private activeAirlinesNum; // the maximum number of airliners can be active is 65535, should be fine. There are 5k airlines with ICAO codes currently
+
     struct Flight {
         bool isRegistered;
         uint8 statusCode;
@@ -28,9 +41,10 @@ contract FlightSuretyData {
      * @dev Constructor
      *      The deploying account becomes contractOwner
      */
-    constructor() public {
+    constructor(address initialAirlineAddress) public {
         operational = true;
         contractOwner = msg.sender;
+        airlines[initialAirlineAddress].isRegistered = true;
     }
 
     /********************************************************************************************/
