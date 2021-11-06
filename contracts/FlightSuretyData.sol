@@ -1,9 +1,11 @@
 pragma solidity ^0.4.25;
 
 import "../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "./SafeMath16.sol";
 
 contract FlightSuretyData {
     using SafeMath for uint256;
+    using SafeMath16 for uint16;
 
     /********************************************************************************************/
     /*                                       DATA VARIABLES                                     */
@@ -14,16 +16,14 @@ contract FlightSuretyData {
 
     struct Airline {
         string name; // name of airline
-        
         mapping(address => bool) votes;
         uint16 numberOfVotes; // index to keep track of the votes
-
-        bool isRegistered; // has the consensus of 50% of other registered airlines
+        bool isRegistered; // has the consensus of 50% of other registered airlines if at least 4 airlines are registered
         bool isActive; // has paid 10 ether to contract owner and can participate in contract
     }
 
     mapping(address => Airline) private airlines;
-    uint16 private activeAirlinesNum; // the maximum number of airliners can be active is 65535, should be fine. There are 5k airlines with ICAO codes currently
+    uint16 private registeredAirlineNum; // the maximum number of airliners can be active is 65535, should be fine. There are 5k airlines with ICAO codes currently
 
     mapping(address => bool) private authorisedAppContracts; // app contracts that can interact with this data contract
 
@@ -43,10 +43,13 @@ contract FlightSuretyData {
      * @dev Constructor
      *      The deploying account becomes contractOwner
      */
-    constructor(address initialAirlineAddress) public {
+    constructor(address initialAirlineAddress, string initialAirlineName)
+        public
+    {
         operational = true;
         contractOwner = msg.sender;
         airlines[initialAirlineAddress].isRegistered = true;
+        airlines[initialAirlineAddress].name = initialAirlineName;
     }
 
     /********************************************************************************************/
@@ -77,8 +80,8 @@ contract FlightSuretyData {
     /**
      * @dev Modifier that require authorised app contract to access
      */
-    modifier requireAuthorizedAppContract(){
-        require(authorisedAppContract[msg.sender], "Unauthorised access");
+    modifier requireAuthorizedAppContract() {
+        require(authorisedAppContracts[msg.sender], "Unauthorised access");
         _;
     }
 
@@ -109,15 +112,22 @@ contract FlightSuretyData {
      *
      * Only authorised app contracts can access this data contract
      */
-    function addAuthorisedContract(address appContractAddress) external requireContractOwner {
+    function addAuthorisedContract(address appContractAddress)
+        external
+        requireContractOwner
+    {
         authorisedAppContracts[appContractAddress] = true;
     }
+
     /**
      * @dev Remove authorised app contracts
      *
      * Remove obsolete/compromised app contracts.
      */
-    function removeAuthorisedContract(address appContractAddress) external requireContractOwner {
+    function removeAuthorisedContract(address appContractAddress)
+        external
+        requireContractOwner
+    {
         delete authorisedAppContracts[appContractAddress];
     }
 
@@ -125,14 +135,49 @@ contract FlightSuretyData {
     /*                                     SMART CONTRACT FUNCTIONS                             */
     /********************************************************************************************/
 
-    /**
-     * @dev Add an airline to the registration queue
-     *      Can only be called from FlightSuretyApp contract
-     *
-     */
-    function registerAirline() external pure {
-
+    function airlinerVoteDetail(address airlineAddress, address voterAirlineAddress)
+        external
+        view
+        requireAuthorizedAppContract
+        requireIsOperational
+        returns (
+            bool hasVoted,
+            uint16 numberOfVotes,
+            bool isRegistered,
+            uint16 totalRegisteredAirline
+        )
+    {
+        hasVoted = airlines[airlineAddress].votes[voterAirlineAddress];
+        numberOfVotes = airlines[airlineAddress].numberOfVotes;
+        isRegistered = airlines[airlineAddress].isRegistered;
+        totalRegisteredAirline = registeredAirlineNum;
     }
+
+    function updateRegistrationVote(
+        address airlineAddress,
+        address voterAirlineAddress,
+        uint16 numberOfVotes,
+        bool isRegistered,
+        uint16 numberOfRegisteredAirlines
+    ) external requireAuthorizedAppContract requireIsOperational {
+        airlines[airlineAddress].votes[voterAirlineAddress] = true;
+        airlines[airlineAddress].numberOfVotes = numberOfVotes;
+        airlines[airlineAddress].isRegistered = isRegistered;
+        registeredAirlineNum = numberOfRegisteredAirlines;
+    }
+
+    /**
+     * @dev Add an airline for registration
+     *      Can only be called from FlightSuretyApp contract
+     *  TODO: add checks to prevent double add (in app contract)
+     */
+    function registerAirline(address airlineAddress, string name)
+        external
+        requireAuthorizedAppContract
+        requireIsOperational
+    {
+        airlines[airlineAddress].name = name;
+    } 
 
     /**
      * @dev Buy insurance for a flight

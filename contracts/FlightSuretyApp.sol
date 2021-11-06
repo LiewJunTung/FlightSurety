@@ -5,12 +5,14 @@ pragma solidity ^0.4.25;
 // More info: https://www.nccgroup.trust/us/about-us/newsroom-and-events/blog/2018/november/smart-contract-insecurity-bad-arithmetic/
 
 import "../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "./SafeMath16.sol";
 
 /************************************************** */
 /* FlightSurety Smart Contract                      */
 /************************************************** */
 contract FlightSuretyApp {
     using SafeMath for uint256; // Allow SafeMath functions to be called for all uint256 types (similar to "prototype" in Javascript)
+    using SafeMath16 for uint16;
 
     /********************************************************************************************/
     /*                                       DATA VARIABLES                                     */
@@ -25,6 +27,7 @@ contract FlightSuretyApp {
     uint8 private constant STATUS_CODE_LATE_OTHER = 50;
 
     address private contractOwner; // Account used to deploy contract
+    FlightSuretyData dataContract;
 
     /**
      * This is used on all state changing functions to pause the app contract in
@@ -33,8 +36,6 @@ contract FlightSuretyApp {
      * see also isOperational()
      */
     bool private operational;
-
-
 
     /********************************************************************************************/
     /*                                       FUNCTION MODIFIERS                                 */
@@ -62,6 +63,11 @@ contract FlightSuretyApp {
         _;
     }
 
+    modifier requireDifferentAirline(address airlineAddress){
+        require(msg.sender != airlineAddress, "Must be triggered by different airlines");
+        _;
+    }
+
     /********************************************************************************************/
     /*                                       CONSTRUCTOR                                        */
     /********************************************************************************************/
@@ -69,8 +75,9 @@ contract FlightSuretyApp {
     /**
      * @dev Contract constructor
      */
-    constructor() public {
+    constructor(address dataContractAddress) public {
         contractOwner = msg.sender;
+        dataContract = FlightSuretyData(dataContractAddress);
     }
 
     /********************************************************************************************/
@@ -82,7 +89,7 @@ contract FlightSuretyApp {
      *
      * @return A bool that is the current operating status
      */
-    function isOperational() public pure returns (bool) {
+    function isOperational() external view returns (bool) {
         return operational;
     }
 
@@ -99,16 +106,79 @@ contract FlightSuretyApp {
     /*                                     SMART CONTRACT FUNCTIONS                             */
     /********************************************************************************************/
 
+    function voteAirline(address airlineAddress)
+        requireDifferentAirline(airlineAddress)
+        requireIsOperational
+     external {
+        (
+            bool hasVoted,
+            uint16 numberOfVotes,
+            bool isRegistered,
+            uint16 totalRegisteredAirlines
+        ) = dataContract.airlinerVoteDetail(airlineAddress, msg.sender);
+        
+        require(!isRegistered, "Airline is already registered in contract");
+        require(!hasVoted, "Cannot vote twice for the same airline");
+        require(totalRegisteredAirlines >= 5, "Must have at least 5 airlines to use this function");
+        bool newIsRegistered = false;
+        uint16 newNumberOfVotes = numberOfVotes.add(1);
+        uint16 newNumberOfRegisteredAirlines = totalRegisteredAirlines;
+        
+        if (totalRegisteredAirlines.div(2).mul(100) > 50) {
+            newIsRegistered = true;
+            newNumberOfRegisteredAirlines = totalRegisteredAirlines.add(1);
+        }
+        dataContract.updateRegistrationVote(
+            airlineAddress,
+            msg.sender,
+            newNumberOfVotes,
+            newIsRegistered,
+            newNumberOfRegisteredAirlines
+        );
+    }
+
     /**
      * @dev Add an airline to the registration queue
      *
      */
-    function registerAirline()
+    function registerAirline(address airlineAddress)
         external
-        pure
-        returns (bool success, uint256 votes)
+        returns (bool success, uint16 votes)
     {
-        return (success, 0);
+        
+        (
+            ,
+            uint16 numberOfVotes,
+            bool isRegistered,
+            uint16 totalRegisteredAirlines
+        ) = dataContract.airlinerVoteDetail(airlineAddress, msg.sender);
+        require(!isRegistered, "Airline is already registered in contract");
+        require(numberOfVotes < 1, "Airline is already in registration queue");
+        bool registrationSuccessful;
+        
+        if (totalRegisteredAirlines < 5) {
+            uint16 newTotalRegisteredAirlines = totalRegisteredAirlines.add(1);
+            registrationSuccessful = true;
+            dataContract.updateRegistrationVote(
+                airlineAddress,
+                msg.sender,
+                1,
+                registrationSuccessful,
+                newTotalRegisteredAirlines
+            );
+            
+        } else {
+            dataContract.updateRegistrationVote(
+                airlineAddress,
+                msg.sender,
+                1,
+                false,
+                totalRegisteredAirlines
+            );
+            
+        }
+       
+        return (registrationSuccessful, 1);
     }
 
     /**
@@ -312,4 +382,24 @@ contract FlightSuretyApp {
     }
 
     // endregion
+}
+
+contract FlightSuretyData {
+    function updateRegistrationVote(
+        address airlineAddress,
+        address voterAirlineAddress,
+        uint16 numberOfVotes,
+        bool isRegistered,
+        uint16 numberOfRegisteredAirlines
+    ) external;
+
+    function airlinerVoteDetail(address airlineAddress, address voterAirlineAddress)
+        external
+        view
+        returns (
+            bool hasVoted,
+            uint16 numberOfVotes,
+            bool isRegistered,
+            uint16 totalRegisteredAirline
+        );
 }
