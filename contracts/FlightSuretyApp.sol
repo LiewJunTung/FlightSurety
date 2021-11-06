@@ -1,19 +1,21 @@
-pragma solidity ^0.4.25;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.7;
 
 // It's important to avoid vulnerabilities due to numeric overflow bugs
 // OpenZeppelin's SafeMath library, when used correctly, protects agains such bugs
 // More info: https://www.nccgroup.trust/us/about-us/newsroom-and-events/blog/2018/november/smart-contract-insecurity-bad-arithmetic/
 
-import "../node_modules/openzeppelin-solidity/contracts/math/SafeMath.sol";
-import "./SafeMath16.sol";
-
 /************************************************** */
 /* FlightSurety Smart Contract                      */
 /************************************************** */
-contract FlightSuretyApp {
-    using SafeMath for uint256; // Allow SafeMath functions to be called for all uint256 types (similar to "prototype" in Javascript)
-    using SafeMath16 for uint16;
 
+import "./FlightSuretyData.sol";
+
+contract FlightSuretyApp {
+    /*
+    * NOTE: `SafeMath` is no longer needed starting with Solidity 0.8. The compiler
+    * now has built in overflow checking.
+    */
     /********************************************************************************************/
     /*                                       DATA VARIABLES                                     */
     /********************************************************************************************/
@@ -27,6 +29,7 @@ contract FlightSuretyApp {
     uint8 private constant STATUS_CODE_LATE_OTHER = 50;
 
     address private contractOwner; // Account used to deploy contract
+    address payable private dataContractAddr ;
     FlightSuretyData dataContract;
 
     /**
@@ -75,9 +78,10 @@ contract FlightSuretyApp {
     /**
      * @dev Contract constructor
      */
-    constructor(address dataContractAddress) public {
+    constructor(address dataContractAddress) {
         contractOwner = msg.sender;
         dataContract = FlightSuretyData(dataContractAddress);
+        dataContractAddr = payable(dataContractAddress);
     }
 
     /********************************************************************************************/
@@ -122,12 +126,12 @@ contract FlightSuretyApp {
         require(!hasVoted, "Cannot vote twice for the same airline");
         require(totalRegisteredAirlines >= 5, "Must have at least 5 airlines to use this function");
         bool newIsRegistered = false;
-        uint16 newNumberOfVotes = numberOfVotes.add(1);
+        uint16 newNumberOfVotes = numberOfVotes + 1;
         uint16 newNumberOfRegisteredAirlines = totalRegisteredAirlines;
         
-        if (totalRegisteredAirlines.div(2).mul(100) > 50) {
+        if ((totalRegisteredAirlines/2)* 100 > 50) {
             newIsRegistered = true;
-            newNumberOfRegisteredAirlines = totalRegisteredAirlines.add(1);
+            newNumberOfRegisteredAirlines = totalRegisteredAirlines + 1;
         }
         dataContract.updateAirline(
             name,
@@ -143,7 +147,7 @@ contract FlightSuretyApp {
      * @dev Add an airline to the registration queue
      *
      */
-    function registerAirline(string airlineName, address airlineAddress)
+    function registerAirline(string memory airlineName, address airlineAddress)
         external
         returns (bool success, uint16 votes)
     {
@@ -160,7 +164,7 @@ contract FlightSuretyApp {
         bool registrationSuccessful;
         
         if (totalRegisteredAirlines < 5) {
-            uint16 newTotalRegisteredAirlines = totalRegisteredAirlines.add(1);
+            uint16 newTotalRegisteredAirlines = totalRegisteredAirlines + 1;
             registrationSuccessful = true;
             dataContract.updateAirline(
                 airlineName,
@@ -206,7 +210,7 @@ contract FlightSuretyApp {
     // Generate a request for oracles to fetch flight information
     function fetchFlightStatus(
         address airline,
-        string flight,
+        string memory flight,
         uint256 timestamp
     ) external {
         uint8 index = getRandomIndex(msg.sender);
@@ -215,10 +219,8 @@ contract FlightSuretyApp {
         bytes32 key = keccak256(
             abi.encodePacked(index, airline, flight, timestamp)
         );
-        oracleResponses[key] = ResponseInfo({
-            requester: msg.sender,
-            isOpen: true
-        });
+        oracleResponses[key].requester = msg.sender;
+        oracleResponses[key].isOpen = true;
 
         emit OracleRequest(index, airline, flight, timestamp);
     }
@@ -290,7 +292,7 @@ contract FlightSuretyApp {
         oracles[msg.sender] = Oracle({isRegistered: true, indexes: indexes});
     }
 
-    function getMyIndexes() external view returns (uint8[3]) {
+    function getMyIndexes() external view returns (uint8[3] memory) {
         require(
             oracles[msg.sender].isRegistered,
             "Not registered as an oracle"
@@ -306,7 +308,7 @@ contract FlightSuretyApp {
     function submitOracleResponse(
         uint8 index,
         address airline,
-        string flight,
+        string memory flight,
         uint256 timestamp,
         uint8 statusCode
     ) external {
@@ -342,14 +344,14 @@ contract FlightSuretyApp {
 
     function getFlightKey(
         address airline,
-        string flight,
+        string memory flight,
         uint256 timestamp
     ) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(airline, flight, timestamp));
     }
 
     // Returns array of three non-duplicating integers from 0-9
-    function generateIndexes(address account) internal returns (uint8[3]) {
+    function generateIndexes(address account) internal returns (uint8[3] memory) {
         uint8[3] memory indexes;
         indexes[0] = getRandomIndex(account);
 
@@ -387,26 +389,4 @@ contract FlightSuretyApp {
     }
 
     // endregion
-}
-
-contract FlightSuretyData {
-    function updateAirline(
-        string name,
-        address airlineAddress,
-        address voterAirlineAddress,
-        uint16 numberOfVotes,
-        bool isRegistered,
-        uint16 numberOfRegisteredAirlines
-    ) external;
-
-    function airlineDetail(address airlineAddress, address voterAirlineAddress)
-        external
-        view
-        returns (
-            string name,
-            bool hasVoted,
-            uint16 numberOfVotes,
-            bool isRegistered,
-            uint16 totalRegisteredAirline
-        );
 }
