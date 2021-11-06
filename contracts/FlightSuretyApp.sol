@@ -111,11 +111,12 @@ contract FlightSuretyApp {
         requireIsOperational
      external {
         (
+            string memory name,
             bool hasVoted,
             uint16 numberOfVotes,
             bool isRegistered,
             uint16 totalRegisteredAirlines
-        ) = dataContract.airlinerVoteDetail(airlineAddress, msg.sender);
+        ) = dataContract.airlineDetail(airlineAddress, msg.sender);
         
         require(!isRegistered, "Airline is already registered in contract");
         require(!hasVoted, "Cannot vote twice for the same airline");
@@ -128,7 +129,8 @@ contract FlightSuretyApp {
             newIsRegistered = true;
             newNumberOfRegisteredAirlines = totalRegisteredAirlines.add(1);
         }
-        dataContract.updateRegistrationVote(
+        dataContract.updateAirline(
+            name,
             airlineAddress,
             msg.sender,
             newNumberOfVotes,
@@ -141,17 +143,18 @@ contract FlightSuretyApp {
      * @dev Add an airline to the registration queue
      *
      */
-    function registerAirline(address airlineAddress)
+    function registerAirline(string airlineName, address airlineAddress)
         external
         returns (bool success, uint16 votes)
     {
         
         (
             ,
+            ,
             uint16 numberOfVotes,
             bool isRegistered,
             uint16 totalRegisteredAirlines
-        ) = dataContract.airlinerVoteDetail(airlineAddress, msg.sender);
+        ) = dataContract.airlineDetail(airlineAddress, msg.sender);
         require(!isRegistered, "Airline is already registered in contract");
         require(numberOfVotes < 1, "Airline is already in registration queue");
         bool registrationSuccessful;
@@ -159,7 +162,8 @@ contract FlightSuretyApp {
         if (totalRegisteredAirlines < 5) {
             uint16 newTotalRegisteredAirlines = totalRegisteredAirlines.add(1);
             registrationSuccessful = true;
-            dataContract.updateRegistrationVote(
+            dataContract.updateAirline(
+                airlineName,
                 airlineAddress,
                 msg.sender,
                 1,
@@ -168,7 +172,8 @@ contract FlightSuretyApp {
             );
             
         } else {
-            dataContract.updateRegistrationVote(
+            dataContract.updateAirline(
+                airlineName,
                 airlineAddress,
                 msg.sender,
                 1,
@@ -385,7 +390,8 @@ contract FlightSuretyApp {
 }
 
 contract FlightSuretyData {
-    function updateRegistrationVote(
+    function updateAirline(
+        string name,
         address airlineAddress,
         address voterAirlineAddress,
         uint16 numberOfVotes,
@@ -393,10 +399,11 @@ contract FlightSuretyData {
         uint16 numberOfRegisteredAirlines
     ) external;
 
-    function airlinerVoteDetail(address airlineAddress, address voterAirlineAddress)
+    function airlineDetail(address airlineAddress, address voterAirlineAddress)
         external
         view
         returns (
+            string name,
             bool hasVoted,
             uint16 numberOfVotes,
             bool isRegistered,

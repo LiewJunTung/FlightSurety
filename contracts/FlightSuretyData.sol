@@ -135,25 +135,28 @@ contract FlightSuretyData {
     /*                                     SMART CONTRACT FUNCTIONS                             */
     /********************************************************************************************/
 
-    function airlinerVoteDetail(address airlineAddress, address voterAirlineAddress)
+    function airlineDetail(address airlineAddress, address voterAirlineAddress)
         external
         view
         requireAuthorizedAppContract
         requireIsOperational
         returns (
+            string name,
             bool hasVoted,
             uint16 numberOfVotes,
             bool isRegistered,
             uint16 totalRegisteredAirline
         )
     {
+        name = airlines[airlineAddress].name;
         hasVoted = airlines[airlineAddress].votes[voterAirlineAddress];
         numberOfVotes = airlines[airlineAddress].numberOfVotes;
         isRegistered = airlines[airlineAddress].isRegistered;
         totalRegisteredAirline = registeredAirlineNum;
     }
 
-    function updateRegistrationVote(
+    function updateAirline(
+        string name,
         address airlineAddress,
         address voterAirlineAddress,
         uint16 numberOfVotes,
@@ -169,7 +172,6 @@ contract FlightSuretyData {
     /**
      * @dev Add an airline for registration
      *      Can only be called from FlightSuretyApp contract
-     *  TODO: add checks to prevent double add (in app contract)
      */
     function registerAirline(address airlineAddress, string name)
         external
