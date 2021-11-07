@@ -11,7 +11,7 @@ interface FlightSuretyData {
         uint16 numberOfRegisteredAirlines
     ) external;
 
-    function airlineDetail(address airlineAddress, address voterAirlineAddress)
+    function airlineVoteDetail(address airlineAddress, address voterAirlineAddress)
         external
         view
         returns (
@@ -22,4 +22,17 @@ interface FlightSuretyData {
             uint16 totalRegisteredAirline
         );
 
+    function airlineDetail(address airlineAddress)
+        external
+        view
+        returns (
+            string memory name,
+            uint16 numberOfVotes,
+            bool isRegistered,
+            uint16 totalRegisteredAirline
+        );
+    
+    function airlineIsFunded(address airlineAddress) external view returns (bool);
+
+    function fundAirline(address airlineAddress) external;
 }

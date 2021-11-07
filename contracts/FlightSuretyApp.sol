@@ -13,9 +13,9 @@ import "./FlightSuretyData.sol";
 
 contract FlightSuretyApp {
     /*
-    * NOTE: `SafeMath` is no longer needed starting with Solidity 0.8. The compiler
-    * now has built in overflow checking.
-    */
+     * NOTE: `SafeMath` is no longer needed starting with Solidity 0.8. The compiler
+     * now has built in overflow checking.
+     */
     /********************************************************************************************/
     /*                                       DATA VARIABLES                                     */
     /********************************************************************************************/
@@ -29,7 +29,7 @@ contract FlightSuretyApp {
     uint8 private constant STATUS_CODE_LATE_OTHER = 50;
 
     address private contractOwner; // Account used to deploy contract
-    address payable private dataContractAddr ;
+    address payable private dataContractAddr;
     FlightSuretyData dataContract;
 
     /**
@@ -46,6 +46,11 @@ contract FlightSuretyApp {
 
     // Modifiers help avoid duplication of code. They are typically used to validate something
     // before a function is allowed to be executed.
+
+    modifier minFundAirlineValue() {
+        require(msg.value >= 1 ether, "Amount of ether must be 1 ether");
+        _;
+    }
 
     /**
      * @dev Modifier that requires the "operational" boolean variable to be "true"
@@ -66,8 +71,27 @@ contract FlightSuretyApp {
         _;
     }
 
-    modifier requireDifferentAirline(address airlineAddress){
-        require(msg.sender != airlineAddress, "Must be triggered by different airlines");
+    modifier requireDifferentAirline(address airlineAddress) {
+        require(
+            msg.sender != airlineAddress,
+            "Must be triggered by different airlines"
+        );
+        _;
+    }
+
+    modifier requireIsFunded() {
+        require(
+            dataContract.airlineIsFunded(msg.sender),
+            "Must be funded to use the function"
+        );
+        _;
+    }
+
+    modifier requireIsNotFunded() {
+        require(
+            !dataContract.airlineIsFunded(msg.sender),
+            "Airline is already funded"
+        );
         _;
     }
 
@@ -111,25 +135,30 @@ contract FlightSuretyApp {
     /********************************************************************************************/
 
     function voteAirline(address airlineAddress)
+        external
         requireDifferentAirline(airlineAddress)
         requireIsOperational
-     external {
+        requireIsFunded
+    {
         (
             string memory name,
             bool hasVoted,
             uint16 numberOfVotes,
             bool isRegistered,
             uint16 totalRegisteredAirlines
-        ) = dataContract.airlineDetail(airlineAddress, msg.sender);
-        
+        ) = dataContract.airlineVoteDetail(airlineAddress, msg.sender);
+
         require(!isRegistered, "Airline is already registered in contract");
         require(!hasVoted, "Cannot vote twice for the same airline");
-        require(totalRegisteredAirlines >= 5, "Must have at least 5 airlines to use this function");
+        require(
+            totalRegisteredAirlines >= 5,
+            "Must have at least 5 airlines to use this function"
+        );
         bool newIsRegistered = false;
         uint16 newNumberOfVotes = numberOfVotes + 1;
         uint16 newNumberOfRegisteredAirlines = totalRegisteredAirlines;
-        
-        if ((totalRegisteredAirlines/2)* 100 > 50) {
+
+        if ((newNumberOfVotes * 100) / totalRegisteredAirlines >= 50) {
             newIsRegistered = true;
             newNumberOfRegisteredAirlines = totalRegisteredAirlines + 1;
         }
@@ -143,38 +172,54 @@ contract FlightSuretyApp {
         );
     }
 
+    function fundAirline()
+        external
+        payable
+        requireIsOperational
+        requireIsNotFunded
+        minFundAirlineValue
+    {
+        address payable sender = payable(msg.sender);
+        dataContract.fundAirline(msg.sender);
+
+        dataContractAddr.transfer(10 ether);
+        sender.transfer(msg.value - 10 ether);
+    }
+
     /**
      * @dev Add an airline to the registration queue
      *
      */
-    function registerAirline(string memory airlineName, address airlineAddress)
+    function registerAirline(address airlineAddress, string memory airlineName)
         external
-        returns (bool success, uint16 votes)
+        requireDifferentAirline(airlineAddress)
+        requireIsOperational
+        requireIsFunded
+        returns (bool registrationSuccessful, bool addedToQueue, uint16 totalActiveAirline)
     {
-        
         (
             ,
             ,
             uint16 numberOfVotes,
             bool isRegistered,
             uint16 totalRegisteredAirlines
-        ) = dataContract.airlineDetail(airlineAddress, msg.sender);
+        ) = dataContract.airlineVoteDetail(airlineAddress, msg.sender);
         require(!isRegistered, "Airline is already registered in contract");
         require(numberOfVotes < 1, "Airline is already in registration queue");
-        bool registrationSuccessful;
         
         if (totalRegisteredAirlines < 5) {
             uint16 newTotalRegisteredAirlines = totalRegisteredAirlines + 1;
-            registrationSuccessful = true;
             dataContract.updateAirline(
                 airlineName,
                 airlineAddress,
                 msg.sender,
                 1,
-                registrationSuccessful,
+                true,
                 newTotalRegisteredAirlines
             );
-            
+            addedToQueue = false;
+            registrationSuccessful = true;
+            totalActiveAirline = newTotalRegisteredAirlines;
         } else {
             dataContract.updateAirline(
                 airlineName,
@@ -184,10 +229,10 @@ contract FlightSuretyApp {
                 false,
                 totalRegisteredAirlines
             );
-            
+            addedToQueue = true;
+            registrationSuccessful = false;
+            totalActiveAirline = totalRegisteredAirlines;
         }
-       
-        return (registrationSuccessful, 1);
     }
 
     /**
@@ -351,7 +396,10 @@ contract FlightSuretyApp {
     }
 
     // Returns array of three non-duplicating integers from 0-9
-    function generateIndexes(address account) internal returns (uint8[3] memory) {
+    function generateIndexes(address account)
+        internal
+        returns (uint8[3] memory)
+    {
         uint8[3] memory indexes;
         indexes[0] = getRandomIndex(account);
 

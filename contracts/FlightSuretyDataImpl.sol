@@ -2,29 +2,29 @@
 pragma solidity ^0.8.7;
 
 import "./FlightSuretyData.sol";
+import "../node_modules/@openzeppelin/contracts/utils/Address.sol";
 
 contract FlightSuretyDataImpl is FlightSuretyData {
-
+    using Address for address;
     /********************************************************************************************/
     /*                                       DATA VARIABLES                                     */
     /********************************************************************************************/
 
     address private contractOwner; // Account used to deploy contract
     bool private operational; // Blocks all state changes throughout the contract if false
+    address private appContractAddress;
+    bool private testingMode;
 
     struct Airline {
         string name; // name of airline
         mapping(address => bool) votes;
         uint16 numberOfVotes; // index to keep track of the votes
         bool isRegistered; // has the consensus of 50% of other registered airlines if at least 4 airlines are registered
-        bool isActive; // has paid 10 ether to contract owner and can participate in contract
+        bool isFunded; // has paid 10 ether to contract owner and can participate in contract
     }
 
     mapping(address => Airline) private airlines;
     uint16 private registeredAirlineNum; // the maximum number of airliners can be active is 65535, should be fine. There are 5k airlines with ICAO codes currently
-
-    mapping(address => bool) private authorisedAppContracts; // app contracts that can interact with this data contract
-
     struct Flight {
         bool isRegistered;
         uint8 statusCode;
@@ -41,7 +41,8 @@ contract FlightSuretyDataImpl is FlightSuretyData {
      * @dev Constructor
      *      The deploying account becomes contractOwner
      */
-    constructor(address initialAirlineAddress, string memory initialAirlineName) {
+    constructor(address initialAirlineAddress, string memory initialAirlineName)
+    {
         operational = true;
         contractOwner = msg.sender;
         airlines[initialAirlineAddress].isRegistered = true;
@@ -77,13 +78,26 @@ contract FlightSuretyDataImpl is FlightSuretyData {
      * @dev Modifier that require authorised app contract to access
      */
     modifier requireAuthorizedAppContract() {
-        require(authorisedAppContracts[msg.sender], "Unauthorised access");
+        require(appContractAddress == msg.sender, "Unauthorised access");
         _;
     }
 
     /********************************************************************************************/
     /*                                       UTILITY FUNCTIONS                                  */
     /********************************************************************************************/
+
+    function setTestingMode(bool _testingMode) external requireIsOperational {
+        testingMode = _testingMode;
+    }
+
+    function authorizeCaller(address _appContractAddress)
+        external
+        requireIsOperational
+        requireContractOwner
+    {
+        require(_appContractAddress.isContract(), "Only app contract address is allowed");
+        appContractAddress = _appContractAddress;
+    }
 
     /**
      * @dev Get operating status of contract
@@ -103,35 +117,29 @@ contract FlightSuretyDataImpl is FlightSuretyData {
         operational = mode;
     }
 
-    /**
-     * @dev Add authorised app contracts
-     *
-     * Only authorised app contracts can access this data contract
-     */
-    function addAuthorisedContract(address appContractAddress)
-        external
-        requireContractOwner
-    {
-        authorisedAppContracts[appContractAddress] = true;
-    }
-
-    /**
-     * @dev Remove authorised app contracts
-     *
-     * Remove obsolete/compromised app contracts.
-     */
-    function removeAuthorisedContract(address appContractAddress)
-        external
-        requireContractOwner
-    {
-        delete authorisedAppContracts[appContractAddress];
-    }
-
     /********************************************************************************************/
     /*                                     SMART CONTRACT FUNCTIONS                             */
     /********************************************************************************************/
 
-    function airlineDetail(address airlineAddress, address voterAirlineAddress)
+    function fundAirline(address airlineAddress)
+        external
+        requireAuthorizedAppContract
+        requireIsOperational
+    {
+        airlines[airlineAddress].isFunded = true;
+    }
+
+    function airlineIsFunded(address airlineAddress)
+        external
+        view
+        requireAuthorizedAppContract
+        requireIsOperational
+        returns (bool)
+    {
+        return airlines[airlineAddress].isFunded;
+    }
+
+    function airlineVoteDetail(address airlineAddress, address voterAirlineAddress)
         external
         view
         requireAuthorizedAppContract
@@ -151,6 +159,23 @@ contract FlightSuretyDataImpl is FlightSuretyData {
         totalRegisteredAirline = registeredAirlineNum;
     }
 
+    function airlineDetail(address airlineAddress)
+        external
+        view
+        requireIsOperational
+        returns (
+            string memory name,
+            uint16 numberOfVotes,
+            bool isRegistered,
+            uint16 totalRegisteredAirline
+        )
+    {
+        name = airlines[airlineAddress].name;
+        numberOfVotes = airlines[airlineAddress].numberOfVotes;
+        isRegistered = airlines[airlineAddress].isRegistered;
+        totalRegisteredAirline = registeredAirlineNum;
+    }
+
     function updateAirline(
         string memory name,
         address airlineAddress,
@@ -159,7 +184,6 @@ contract FlightSuretyDataImpl is FlightSuretyData {
         bool isRegistered,
         uint16 numberOfRegisteredAirlines
     ) external requireAuthorizedAppContract requireIsOperational {
-        
         airlines[airlineAddress].name = name;
         airlines[airlineAddress].votes[voterAirlineAddress] = true;
         airlines[airlineAddress].numberOfVotes = numberOfVotes;
@@ -177,7 +201,7 @@ contract FlightSuretyDataImpl is FlightSuretyData {
         requireIsOperational
     {
         airlines[airlineAddress].name = name;
-    } 
+    }
 
     /**
      * @dev Buy insurance for a flight
