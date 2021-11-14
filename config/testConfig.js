@@ -26,14 +26,20 @@ var Config = async function(accounts) {
     let flightSuretyData = await FlightSuretyData.new(firstAirline, firstAirlineName);
     let flightSuretyApp = await FlightSuretyApp.new(flightSuretyData.address);
 
-    
+    let flight = 'ND1309'; // Course number
+    let timestamp = Math.floor(Date.now() / 1000);
+    let ticketPrice = web3.utils.toWei("20", "ether")
+
     return {
         owner: owner,
         firstAirline: firstAirline,
         weiMultiple: (new BigNumber(10)).pow(18),
         testAddresses: testAddresses,
         flightSuretyData: flightSuretyData,
-        flightSuretyApp: flightSuretyApp
+        flightSuretyApp: flightSuretyApp,
+        flight: flight,
+        timestamp: timestamp,
+        ticketPrice,
     }
 }
 

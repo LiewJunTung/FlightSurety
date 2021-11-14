@@ -112,11 +112,13 @@ contract("Flight Surety Tests", async (accounts) => {
             from: accounts[index - 1],
           }
         );
-        
-        const airlineDetail = await config.flightSuretyData.airlineDetail.call(newAirline)
+
+        const airlineDetail = await config.flightSuretyData.airlineDetail.call(
+          newAirline
+        );
 
         assert.isTrue(
-            airlineDetail.isRegistered,
+          airlineDetail.isRegistered,
           "Airline should be able to register airline after funded"
         );
         // ARRANGE
@@ -137,44 +139,62 @@ contract("Flight Surety Tests", async (accounts) => {
 
       const newAirline = accounts[7];
       const newAirlineName = `Airline 7`;
-      
-      await config.flightSuretyApp.registerAirline(
-        newAirline,
-        newAirlineName,
-        {
-          from: accounts[6],
-        }
+
+      await config.flightSuretyApp.registerAirline(newAirline, newAirlineName, {
+        from: accounts[6],
+      });
+
+      const airlineDetail = await config.flightSuretyData.airlineDetail.call(
+        newAirline
       );
 
-      const airlineDetail = await config.flightSuretyData.airlineDetail.call(newAirline)
-      
       assert.isNotTrue(
         airlineDetail.isRegistered,
         "Airline should not be able to register airline directly after there are 5 or more funded airlines"
       );
-      console.log(airlineDetail)
     });
 
-    
     it("when number of (airline) is equal or bigger than 5, will need at least 50 percent of airline to vote", async () => {
-        const newAirline = accounts[7];
-        let numberOfVotes = 1;
-        for (let index = 3; index < 7; index++) {
-            const voteAirlineResult = await config.flightSuretyApp.voteAirline(newAirline, {from: accounts[index]});
-            ++numberOfVotes;
-            const airlineDetail = await config.flightSuretyData.airlineDetail.call(newAirline)
-           
-            // console.log(airlineDetail)
-            if (airlineDetail.isRegistered){
-                break
-            }
-            assert.equal(
-                airlineDetail.numberOfVotes.toNumber(),
-                numberOfVotes,
-                "Airline should not be able to register airline directly after there are 5 or more funded airlines"
-              );
+      const newAirline = accounts[7];
+      let numberOfVotes = 1;
+      for (let index = 3; index < 7; index++) {
+        const voteAirlineResult = await config.flightSuretyApp.voteAirline(
+          newAirline,
+          { from: accounts[index] }
+        );
+        ++numberOfVotes;
+        const airlineDetail = await config.flightSuretyData.airlineDetail.call(
+          newAirline
+        );
+
+        // console.log(airlineDetail)
+        if (airlineDetail.isRegistered) {
+          break;
         }
+        assert.equal(
+          airlineDetail.numberOfVotes.toNumber(),
+          numberOfVotes,
+          "Airline should not be able to register airline directly after there are 5 or more funded airlines"
+        );
+      }
     });
-    
+  });
+  describe("(airline) registration", async () => {
+    it("Register Flight", async () => {
+      await config.flightSuretyApp.registerFlight(
+        config.flight,
+        config.timestamp,
+        config.ticketPrice,
+        { from: config.firstAirline }
+      );
+      var flight = await config.flightSuretyApp.getFlight.call(
+        config.firstAirline,
+        config.flight,
+        config.timestamp,
+      );
+
+      assert.isTrue(flight.isRegistered, "Flight should be registered");
+      assert.equal(web3.utils.fromWei(config.ticketPrice), web3.utils.fromWei(flight.ticketPrice));
+    });
   });
 });

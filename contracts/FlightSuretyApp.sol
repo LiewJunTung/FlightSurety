@@ -52,6 +52,11 @@ contract FlightSuretyApp {
         _;
     }
 
+    modifier requireTicketPriceMoreThanOneEther(uint256 ticketPrice){
+        require(ticketPrice >= 1 ether, "Amount of ether must be 1 ether");
+        _;
+    }
+
     /**
      * @dev Modifier that requires the "operational" boolean variable to be "true"
      *      This is used on all state changing functions to pause the contract in
@@ -94,6 +99,18 @@ contract FlightSuretyApp {
         );
         _;
     }
+
+    modifier requireFlightIsNotRegistered(bytes32 flightKey) {
+        require(
+            !dataContract.isFlightRegistered(flightKey),
+            "Flight must not be registered before"
+        );
+        _;
+    }
+
+    /********************************************************************************************/
+    /*                                       EVENT                                        */
+    /********************************************************************************************/
 
     /********************************************************************************************/
     /*                                       CONSTRUCTOR                                        */
@@ -195,7 +212,11 @@ contract FlightSuretyApp {
         requireDifferentAirline(airlineAddress)
         requireIsOperational
         requireIsFunded
-        returns (bool registrationSuccessful, bool addedToQueue, uint16 totalActiveAirline)
+        returns (
+            bool registrationSuccessful,
+            bool addedToQueue,
+            uint16 totalActiveAirline
+        )
     {
         (
             ,
@@ -206,7 +227,7 @@ contract FlightSuretyApp {
         ) = dataContract.airlineVoteDetail(airlineAddress, msg.sender);
         require(!isRegistered, "Airline is already registered in contract");
         require(numberOfVotes < 1, "Airline is already in registration queue");
-        
+
         if (totalRegisteredAirlines < 5) {
             uint16 newTotalRegisteredAirlines = totalRegisteredAirlines + 1;
             dataContract.updateAirline(
@@ -239,18 +260,80 @@ contract FlightSuretyApp {
      * @dev Register a future flight for insuring.
      *
      */
-    function registerFlight() external pure {}
+    function registerFlight(string memory flightNumber, uint256 timestamp, uint256 ticketPrice)
+        external
+        requireTicketPriceMoreThanOneEther(ticketPrice)
+        requireIsFunded
+        requireIsOperational
+    {
+        bytes32 flightKey = getFlightKey(msg.sender, flightNumber, timestamp);
+
+        require(
+            !dataContract.isFlightRegistered(flightKey),
+            "Flight must not be registered before"
+        );
+        dataContract.updateFlight(
+            flightKey,
+            flightNumber,
+            msg.sender,
+            timestamp,
+            ticketPrice
+        );
+    }
 
     /**
      * @dev Called after oracle has updated flight status
-     *
+     *  determine if status will give the insurees a payout
      */
     function processFlightStatus(
         address airline,
         string memory flight,
         uint256 timestamp,
         uint8 statusCode
-    ) internal pure {}
+    ) internal requireIsOperational {
+        bytes32 flightKey = getFlightKey(airline, flight, timestamp);
+
+        (,bool isRegistered, uint8 _statusCode, , ,) = dataContract.getFlight(
+            flightKey
+        );
+        require(isRegistered, "Flight is not registered");
+        require(
+            _statusCode != STATUS_CODE_UNKNOWN,
+            "Flight & insurance status is already determined"
+        );
+        require(
+            statusCode != STATUS_CODE_UNKNOWN,
+            "New Flight status cannot be unknown"
+        );
+        dataContract.updateFlightStatus(flightKey, statusCode, timestamp);
+        if (statusCode != STATUS_CODE_ON_TIME) {
+            dataContract.toggleInsurancePayoutStatus(flightKey);
+        }
+    }
+
+    function getFlight(address airlineAddress, string memory flight, uint256 timestamp)
+        external
+        view
+        requireIsOperational
+        returns (
+            string memory name,
+            bool isRegistered,
+            uint8 statusCode,
+            uint256 updatedTimestamp,
+            address airline,
+            uint256 ticketPrice
+        )
+    {
+        bytes32 flightKey = getFlightKey(airlineAddress, flight, timestamp);
+        (
+            name,
+            isRegistered,
+            statusCode,
+            updatedTimestamp,
+            airline,
+            ticketPrice
+        ) = dataContract.getFlight(flightKey);
+    }
 
     // Generate a request for oracles to fetch flight information
     function fetchFlightStatus(

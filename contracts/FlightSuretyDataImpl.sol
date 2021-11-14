@@ -25,11 +25,25 @@ contract FlightSuretyDataImpl is FlightSuretyData {
 
     mapping(address => Airline) private airlines;
     uint16 private registeredAirlineNum; // the maximum number of airliners can be active is 65535, should be fine. There are 5k airlines with ICAO codes currently
+    struct InsuranceInfo {
+        //passenger => ether
+        mapping(address => uint256) insuredAmount;
+        //passenger => ether, for record
+        mapping(address => uint256) refundAmount;
+        //passenger => bool, track is withdrawed
+        mapping(address => bool) isRefunded;
+        // eligible for passengers to claim fund
+        bool payoutEligible;
+    }
+    mapping(bytes32 => InsuranceInfo) private insuranceList;
+
     struct Flight {
+        string name;
         bool isRegistered;
         uint8 statusCode;
         uint256 updatedTimestamp;
         address airline;
+        uint256 price; // assuming that the price of ticket is the same for all passengers, how I wished
     }
     mapping(bytes32 => Flight) private flights;
 
@@ -82,6 +96,11 @@ contract FlightSuretyDataImpl is FlightSuretyData {
         _;
     }
 
+    modifier requireFlightNotEmpty(bytes32 flightKey) {
+        require(flights[flightKey].airline != address(0), "");
+        _;
+    }
+
     /********************************************************************************************/
     /*                                       UTILITY FUNCTIONS                                  */
     /********************************************************************************************/
@@ -95,7 +114,10 @@ contract FlightSuretyDataImpl is FlightSuretyData {
         requireIsOperational
         requireContractOwner
     {
-        require(_appContractAddress.isContract(), "Only app contract address is allowed");
+        require(
+            _appContractAddress.isContract(),
+            "Only app contract address is allowed"
+        );
         appContractAddress = _appContractAddress;
     }
 
@@ -139,7 +161,10 @@ contract FlightSuretyDataImpl is FlightSuretyData {
         return airlines[airlineAddress].isFunded;
     }
 
-    function airlineVoteDetail(address airlineAddress, address voterAirlineAddress)
+    function airlineVoteDetail(
+        address airlineAddress,
+        address voterAirlineAddress
+    )
         external
         view
         requireAuthorizedAppContract
@@ -203,16 +228,62 @@ contract FlightSuretyDataImpl is FlightSuretyData {
         airlines[airlineAddress].name = name;
     }
 
+    function updateFlight(
+        bytes32 flightKey,
+        string memory name,
+        address airlineAddress,
+        uint256 timestamp,
+        uint256 price
+    ) external requireAuthorizedAppContract requireIsOperational {
+        flights[flightKey].isRegistered = true;
+        flights[flightKey].updatedTimestamp = timestamp;
+        flights[flightKey].airline = airlineAddress;
+        flights[flightKey].name = name;
+        flights[flightKey].price = price;
+    }
+
+    function updateFlightStatus(
+        bytes32 flightKey,
+        uint8 statusCode,
+        uint256 timestamp
+    ) external requireAuthorizedAppContract requireIsOperational {
+        flights[flightKey].updatedTimestamp = timestamp;
+        flights[flightKey].statusCode = statusCode;
+    }
+
+    function toggleInsurancePayoutStatus(bytes32 flightKey)
+        external
+        requireAuthorizedAppContract
+        requireIsOperational
+        requireFlightNotEmpty(flightKey)
+    {
+        insuranceList[flightKey].payoutEligible = true;
+    }
+
+    function isFlightRegistered(bytes32 flightKey)
+        external
+        view
+        requireAuthorizedAppContract
+        requireIsOperational
+        returns (bool)
+    {
+        return flights[flightKey].isRegistered;
+    }
+
     /**
      * @dev Buy insurance for a flight
      *
      */
-    function buy() external payable {}
+    function buy() external payable {
+
+    }
 
     /**
      *  @dev Credits payouts to insurees
      */
-    function creditInsurees() external pure {}
+    function creditInsurees() external pure {
+
+    }
 
     /**
      *  @dev Transfers eligible payout funds to insuree
@@ -226,6 +297,28 @@ contract FlightSuretyDataImpl is FlightSuretyData {
      *
      */
     function fund() public payable {}
+
+    function getFlight(bytes32 flightKey)
+        external
+        view
+        requireAuthorizedAppContract
+        requireIsOperational
+        returns (
+            string memory name,
+            bool isRegistered,
+            uint8 statusCode,
+            uint256 updatedTimestamp,
+            address airline,
+            uint256 ticketPrice
+        )
+    {
+        name = flights[flightKey].name;
+        isRegistered = flights[flightKey].isRegistered;
+        statusCode = flights[flightKey].statusCode;
+        updatedTimestamp = flights[flightKey].updatedTimestamp;
+        airline = flights[flightKey].airline;
+        ticketPrice = flights[flightKey].price;
+    }
 
     function getFlightKey(
         address airline,
