@@ -15,6 +15,20 @@ contract("Flight Surety Tests", async (accounts) => {
   /* Operations and Settings                                                              */
   /****************************************************************************************/
 
+  it(`(owner) fund contract`, async () => {
+    const result = await config.flightSuretyData.fund({
+      value: config.initialFund,
+    });
+    // console.log(result);
+    const balance =
+      await config.flightSuretyData.checkInsuranceFundBalance.call();
+
+    assert.equal(
+      web3.utils.fromWei(config.initialFund),
+      web3.utils.fromWei(balance)
+    );
+  });
+
   it(`(multiparty) has correct initial isOperational() value`, async function () {
     // Get operating status
     let status = await config.flightSuretyData.isOperational.call();
@@ -100,7 +114,6 @@ contract("Flight Surety Tests", async (accounts) => {
 
       assert.equal(parseInt(afterRefunded), 10, "is not refunded");
     });
-
     it("when number of (airline) is lower than 5, an airline can register airline", async () => {
       for (let index = 2; index < 7; index++) {
         const newAirline = accounts[index];
@@ -122,7 +135,7 @@ contract("Flight Surety Tests", async (accounts) => {
           "Airline should be able to register airline after funded"
         );
         // ARRANGE
-        console.log("FUNDING", newAirlineName);
+        console.log("FUNDING", newAirlineName, newAirline);
         const initialBalance = await web3.eth.getBalance(newAirline);
 
         await config.flightSuretyApp.fundAirline({
@@ -133,7 +146,6 @@ contract("Flight Surety Tests", async (accounts) => {
         const laterBalance = await web3.eth.getBalance(newAirline);
         const afterRefunded =
           web3.utils.fromWei(initialBalance) - web3.utils.fromWei(laterBalance);
-
         assert.equal(parseInt(afterRefunded), 10, "is not refunded");
       }
 
@@ -158,10 +170,9 @@ contract("Flight Surety Tests", async (accounts) => {
       const newAirline = accounts[7];
       let numberOfVotes = 1;
       for (let index = 3; index < 7; index++) {
-        const voteAirlineResult = await config.flightSuretyApp.voteAirline(
-          newAirline,
-          { from: accounts[index] }
-        );
+        await config.flightSuretyApp.voteAirline(newAirline, {
+          from: accounts[index],
+        });
         ++numberOfVotes;
         const airlineDetail = await config.flightSuretyData.airlineDetail.call(
           newAirline
@@ -190,11 +201,42 @@ contract("Flight Surety Tests", async (accounts) => {
       var flight = await config.flightSuretyApp.getFlight.call(
         config.firstAirline,
         config.flight,
-        config.timestamp,
+        config.timestamp
       );
 
       assert.isTrue(flight.isRegistered, "Flight should be registered");
-      assert.equal(web3.utils.fromWei(config.ticketPrice), web3.utils.fromWei(flight.ticketPrice));
+      assert.equal(
+        web3.utils.fromWei(flight.ticketPrice),
+        web3.utils.fromWei(config.ticketPrice),
+        "ticket price not updated"
+      );
+    });
+  });
+
+  describe("(passenger) buy insurance", async () => {
+    it("can buy insurance", async () => {
+      const buyInsurance = await config.flightSuretyApp.buyInsurance(
+        config.firstAirline,
+        config.flight,
+        config.timestamp,
+        { from: config.passenger, value: 1 }
+      );
+      const insuranceClaimStatus =
+        await config.flightSuretyApp.getInsuranceClaimStatus(
+          config.firstAirline,
+          config.flight,
+          config.timestamp,
+          { from: config.passenger }
+        );
+      // console.log(web3.utils.fromWei(insuranceClaimStatus.insuredAmount))
+      assert.isTrue(insuranceClaimStatus.isInsured, "not insured");
+
+      assert.equal(
+        web3.utils.fromWei(insuranceClaimStatus.insuredAmount),
+        config.insuredAmount,
+        "insured amount not the same"
+      );
+      assert.equal(insuranceClaimStatus.reason.toNumber(), 0, "status code is STATUS_CODE_UNKNOWN");
     });
   });
 });

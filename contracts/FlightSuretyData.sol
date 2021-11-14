@@ -53,7 +53,7 @@ interface FlightSuretyData {
         string memory name,
         address airlineAddress,
         uint256 timestamp,
-        uint256 price
+        uint256 ticketPrice
     ) external;
 
     function getFlight(bytes32 flightKey)
@@ -71,4 +71,26 @@ interface FlightSuretyData {
     function toggleInsurancePayoutStatus(bytes32 flightKey) external;
 
     function isFlightRegistered(bytes32 flightKey) external view returns (bool);
+
+    function buyInsurance(
+        bytes32 flightKey,
+        address passenger,
+        uint256 insuredAmount
+    ) external;
+
+    function getInsuranceClaimStatus(bytes32 flightKey, address passenger)
+        external
+        view
+        returns (
+            bool payoutEligible,
+            uint8 reason,
+            bool isInsured,
+            uint256 insuredAmount,
+            bool isRefunded
+        );
+
+        function getInsurance(bytes32 flightKey)
+        external
+        view
+        returns (bool payoutEligible, uint8 reason);
 }

@@ -25,16 +25,19 @@ contract FlightSuretyDataImpl is FlightSuretyData {
 
     mapping(address => Airline) private airlines;
     uint16 private registeredAirlineNum; // the maximum number of airliners can be active is 65535, should be fine. There are 5k airlines with ICAO codes currently
+
     struct InsuranceInfo {
+        mapping(address => bool) isInsured;
         //passenger => ether
         mapping(address => uint256) insuredAmount;
-        //passenger => ether, for record
-        mapping(address => uint256) refundAmount;
         //passenger => bool, track is withdrawed
         mapping(address => bool) isRefunded;
         // eligible for passengers to claim fund
         bool payoutEligible;
+        // reason / Status code
+        uint8 reason;
     }
+    // flight => insurance, passengers will have to search for flight
     mapping(bytes32 => InsuranceInfo) private insuranceList;
 
     struct Flight {
@@ -43,7 +46,7 @@ contract FlightSuretyDataImpl is FlightSuretyData {
         uint8 statusCode;
         uint256 updatedTimestamp;
         address airline;
-        uint256 price; // assuming that the price of ticket is the same for all passengers, how I wished
+        uint256 price;
     }
     mapping(bytes32 => Flight) private flights;
 
@@ -97,7 +100,37 @@ contract FlightSuretyDataImpl is FlightSuretyData {
     }
 
     modifier requireFlightNotEmpty(bytes32 flightKey) {
-        require(flights[flightKey].airline != address(0), "");
+        require(
+            flights[flightKey].airline != address(0),
+            "Flight not available"
+        );
+        _;
+    }
+
+    modifier requirePassengerIsInsured(bytes32 flightKey, address passenger) {
+        require(
+            insuranceList[flightKey].isInsured[passenger],
+            "Passenger is not insured"
+        );
+        _;
+    }
+
+    modifier requireInsurancePayoutEligible(bytes32 flightKey) {
+        require(
+            insuranceList[flightKey].payoutEligible,
+            "Insurance payout not eligible"
+        );
+        _;
+    }
+
+    modifier requireInsuranceIsNotRefunded(
+        bytes32 flightKey,
+        address passenger
+    ) {
+        require(
+            !insuranceList[flightKey].isRefunded[passenger],
+            "Already refunded"
+        );
         _;
     }
 
@@ -233,13 +266,13 @@ contract FlightSuretyDataImpl is FlightSuretyData {
         string memory name,
         address airlineAddress,
         uint256 timestamp,
-        uint256 price
+        uint256 ticketPrice
     ) external requireAuthorizedAppContract requireIsOperational {
         flights[flightKey].isRegistered = true;
         flights[flightKey].updatedTimestamp = timestamp;
         flights[flightKey].airline = airlineAddress;
         flights[flightKey].name = name;
-        flights[flightKey].price = price;
+        flights[flightKey].price = ticketPrice;
     }
 
     function updateFlightStatus(
@@ -271,32 +304,95 @@ contract FlightSuretyDataImpl is FlightSuretyData {
     }
 
     /**
-     * @dev Buy insurance for a flight
+     * Buy insurance for a flight
      *
      */
-    function buy() external payable {
+    function buyInsurance(
+        bytes32 flightKey,
+        address passenger,
+        uint256 insuredAmount
+    ) external 
+    requireAuthorizedAppContract 
+    requireIsOperational
+     {
+        insuranceList[flightKey].insuredAmount[passenger] = insuredAmount;
+        insuranceList[flightKey].isRefunded[passenger] = false;
+        insuranceList[flightKey].isInsured[passenger] = true;
+    }
 
+    /**
+     * Insurance Information
+     */
+    function getInsurance(bytes32 flightKey)
+        external
+        view
+        requireAuthorizedAppContract
+        requireIsOperational
+        returns (bool payoutEligible, uint8 reason)
+    {
+        payoutEligible = insuranceList[flightKey].payoutEligible;
+        reason = insuranceList[flightKey].reason;
+    }
+
+    /**
+     * Insurance Information
+     */
+    function getInsuranceClaimStatus(bytes32 flightKey, address passenger)
+        external
+        view
+        requireAuthorizedAppContract
+        requireIsOperational
+        returns (
+            bool payoutEligible,
+            uint8 reason,
+            bool isInsured,
+            uint256 insuredAmount,
+            bool isRefunded
+        )
+    {
+        payoutEligible = insuranceList[flightKey].payoutEligible;
+        reason = insuranceList[flightKey].reason;
+        isInsured = insuranceList[flightKey].isInsured[passenger];
+        insuredAmount = insuranceList[flightKey].insuredAmount[passenger];
+        isRefunded = insuranceList[flightKey].isRefunded[passenger];
     }
 
     /**
      *  @dev Credits payouts to insurees
      */
-    function creditInsurees() external pure {
-
+    function creditInsurees(bytes32 flightKey, address passenger)
+        external
+        payable
+        requireAuthorizedAppContract
+        requireIsOperational
+        requirePassengerIsInsured(flightKey, passenger)
+        requireInsurancePayoutEligible(flightKey)
+        requireInsuranceIsNotRefunded(flightKey, passenger)
+    {
+        insuranceList[flightKey].isRefunded[passenger] = true;
+        address payable _passenger = payable(passenger);
+        _passenger.transfer(insuranceList[flightKey].insuredAmount[passenger]);
     }
-
-    /**
-     *  @dev Transfers eligible payout funds to insuree
-     *
-     */
-    function pay() external pure {}
 
     /**
      * @dev Initial funding for the insurance. Unless there are too many delayed flights
      *      resulting in insurance payouts, the contract should be self-sustaining
      *
      */
-    function fund() public payable {}
+    function fund() public payable requireIsOperational {
+        address payable contractAddress = payable(this);
+        contractAddress.transfer(msg.value);
+    }
+
+    function checkInsuranceFundBalance()
+        external
+        view
+        requireContractOwner
+        requireIsOperational
+        returns (uint256 amount)
+    {
+        amount = address(this).balance;
+    }
 
     function getFlight(bytes32 flightKey)
         external
@@ -332,7 +428,5 @@ contract FlightSuretyDataImpl is FlightSuretyData {
      * @dev Fallback function for funding smart contract.
      *
      */
-    fallback() external payable {
-        fund();
-    }
+    fallback() external payable {}
 }

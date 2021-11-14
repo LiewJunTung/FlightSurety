@@ -52,11 +52,6 @@ contract FlightSuretyApp {
         _;
     }
 
-    modifier requireTicketPriceMoreThanOneEther(uint256 ticketPrice){
-        require(ticketPrice >= 1 ether, "Amount of ether must be 1 ether");
-        _;
-    }
-
     /**
      * @dev Modifier that requires the "operational" boolean variable to be "true"
      *      This is used on all state changing functions to pause the contract in
@@ -65,6 +60,12 @@ contract FlightSuretyApp {
     modifier requireIsOperational() {
         // Modify to call data contract's status
         require(operational, "Contract is currently not operational");
+        _; // All modifiers require an "_" which indicates where the function body will be added
+    }
+
+    modifier requireFund() {
+        // Modify to call data contract's status
+        require(msg.value > 0, "Must contain funds");
         _; // All modifiers require an "_" which indicates where the function body will be added
     }
 
@@ -89,6 +90,15 @@ contract FlightSuretyApp {
             dataContract.airlineIsFunded(msg.sender),
             "Must be funded to use the function"
         );
+        _;
+    }
+
+    modifier requireInsuranceNotBought(bytes32 flightKey) {
+        (, , bool isInsured, , ) = dataContract.getInsuranceClaimStatus(
+            flightKey,
+            msg.sender
+        );
+        require(!isInsured, "Already insured");
         _;
     }
 
@@ -193,6 +203,7 @@ contract FlightSuretyApp {
         external
         payable
         requireIsOperational
+        requireFund
         requireIsNotFunded
         minFundAirlineValue
     {
@@ -200,7 +211,7 @@ contract FlightSuretyApp {
         dataContract.fundAirline(msg.sender);
 
         dataContractAddr.transfer(10 ether);
-        sender.transfer(msg.value - 10 ether);
+        sender.transfer(msg.value - 10 ether); //refund
     }
 
     /**
@@ -260,12 +271,11 @@ contract FlightSuretyApp {
      * @dev Register a future flight for insuring.
      *
      */
-    function registerFlight(string memory flightNumber, uint256 timestamp, uint256 ticketPrice)
-        external
-        requireTicketPriceMoreThanOneEther(ticketPrice)
-        requireIsFunded
-        requireIsOperational
-    {
+    function registerFlight(
+        string memory flightNumber,
+        uint256 timestamp,
+        uint256 ticketPrice
+    ) external requireIsFunded requireIsOperational {
         bytes32 flightKey = getFlightKey(msg.sender, flightNumber, timestamp);
 
         require(
@@ -293,7 +303,7 @@ contract FlightSuretyApp {
     ) internal requireIsOperational {
         bytes32 flightKey = getFlightKey(airline, flight, timestamp);
 
-        (,bool isRegistered, uint8 _statusCode, , ,) = dataContract.getFlight(
+        (, bool isRegistered, uint8 _statusCode, , , ) = dataContract.getFlight(
             flightKey
         );
         require(isRegistered, "Flight is not registered");
@@ -311,7 +321,11 @@ contract FlightSuretyApp {
         }
     }
 
-    function getFlight(address airlineAddress, string memory flight, uint256 timestamp)
+    function getFlight(
+        address airlineAddress,
+        string memory flight,
+        uint256 timestamp
+    )
         external
         view
         requireIsOperational
@@ -333,6 +347,80 @@ contract FlightSuretyApp {
             airline,
             ticketPrice
         ) = dataContract.getFlight(flightKey);
+    }
+
+    function buyInsurance(
+        address airlineAddress,
+        string memory flight,
+        uint256 timestamp
+    ) external payable requireIsOperational requireFund {
+        bytes32 flightKey = getFlightKey(airlineAddress, flight, timestamp);
+        require(
+            dataContract.isFlightRegistered(flightKey),
+            "Flight must be registered"
+        );
+
+        (, , bool isInsured, , ) = dataContract.getInsuranceClaimStatus(
+            flightKey,
+            msg.sender
+        );
+        require(!isInsured, "Already insured");
+        (, , , , , uint256 ticketPrice) = dataContract.getFlight(flightKey);
+        uint256 insuredAmount = (ticketPrice * 3) / 2;
+        dataContract.buyInsurance(flightKey, msg.sender, insuredAmount);
+        if (msg.value > 1 ether) {
+            //refund
+            address payable senderAddress = payable(msg.sender);
+            senderAddress.transfer(msg.value - 1 ether);
+        }
+    }
+
+    function getInsurance(
+        address airlineAddress,
+        string memory flight,
+        uint256 timestamp
+    )
+        external
+        view
+        requireIsOperational
+        returns (bool payoutEligible, uint8 reason)
+    {
+        bytes32 flightKey = getFlightKey(airlineAddress, flight, timestamp);
+        require(
+            dataContract.isFlightRegistered(flightKey),
+            "Flight must be registered"
+        );
+        (payoutEligible, reason) = dataContract.getInsurance(flightKey);
+    }
+
+    function getInsuranceClaimStatus(
+        address airlineAddress,
+        string memory flight,
+        uint256 timestamp
+    )
+        external
+        view
+        requireIsOperational
+        returns (
+            bool payoutEligible,
+            uint8 reason,
+            bool isInsured,
+            uint256 insuredAmount,
+            bool isRefunded
+        )
+    {
+        bytes32 flightKey = getFlightKey(airlineAddress, flight, timestamp);
+        require(
+            dataContract.isFlightRegistered(flightKey),
+            "Flight must be registered"
+        );
+        (
+            payoutEligible,
+            reason,
+            isInsured,
+            insuredAmount,
+            isRefunded
+        ) = dataContract.getInsuranceClaimStatus(flightKey, msg.sender);
     }
 
     // Generate a request for oracles to fetch flight information
