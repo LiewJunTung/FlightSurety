@@ -130,6 +130,7 @@ contract FlightSuretyApp {
      * @dev Contract constructor
      */
     constructor(address dataContractAddress) {
+        operational = true;
         contractOwner = msg.sender;
         dataContract = FlightSuretyData(dataContractAddress);
         dataContractAddr = payable(dataContractAddress);
