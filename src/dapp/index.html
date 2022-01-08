@@ -1,33 +1,88 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
     <title>FlightSurety</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.1/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="icon" type="image/x-icon" href="favicon.ico">
-</head>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.1.1/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <!-- development version, includes helpful console warnings -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+  </head>
 
-<body>
-
+  <body>
     <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
-        <a class="navbar-brand" href="#">FlightSurety</a>
-        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarsExampleDefault" aria-controls="navbarsExampleDefault"
-            aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+      <a class="navbar-brand" href="#">FlightSurety</a>
+      <button
+        class="navbar-toggler"
+        type="button"
+        data-toggle="collapse"
+        data-target="#navbarsExampleDefault"
+        aria-controls="navbarsExampleDefault"
+        aria-expanded="false"
+        aria-label="Toggle navigation"
+      >
+        <span class="navbar-toggler-icon"></span>
+      </button>
     </nav>
 
-    <main class="container">
-
-        <div id="display-wrapper" class="top-20">
-        </div>
-        <div class="row top-20">
-            <label class="form">Flight</label> <input type="text" id="flight-number"> <btn class="btn btn-primary" id="submit-oracle">Submit to Oracles</btn>
-        </div>
+    <main class="container" id="app">
+      <div id="display-wrapper" class="top-20">
+        <section>
+            <h2>Buy Flights</h2>
+            <div class="card text-center">
+                <div class="card-header">
+                  <ul class="nav nav-tabs card-header-tabs">
+                    <li class="nav-item" v-for="airline in airlines">
+                      <button  v-on:click="selectAirline(airline)" class="nav-link" v-bind:class="{active: isAirlineSelected(airline)}">{{airline.name}}</button>
+                    </li>
+                  </ul>
+                </div>
+                <div class="card-body">
+                  <h5 class="card-title">{{currentAirline.name}}</h5>
+                  <p class="card-text">Flight: {{currentAirline.flight}}</p>
+                  <p class="card-text">Price: {{flightPrice}} Ether</p>
+                  
+                  <div class="row">
+                    <div class="col align-self-end">
+                      <button class="btn btn-primary" 
+                      v-on:click="buyTicket"
+                      v-if="showButton"
+                      >Buy Ticket</button>
+                    </div>
+                  </div>
+                  
+                  
+                </div>
+              </div>
+        </section>
+        
+        <section>
+          <h2>Oracles</h2>
+          <h5>Trigger oracles</h5>
+          <div class="row" v-for="flight in flights">
+            <div class="col-sm-4 field">Fetch Flight Status</div>
+            <div class="col-sm-8 field-value">{{flight}}</div>
+          </div>
+        </section>
+      </div>
+      <div id="flight-choice" class="list-group"></div>
+      <div class="row top-20">
+        <label class="form">Flight</label>
+        <input v-model="oracleFlightNumber" type="text" id="flight-number" />
+        <button
+          class="btn btn-primary"
+          id="submit-oracle"
+          v-on:click="submitOracle"
+          >Submit to Oracles</btn
+        >
+      </div>
     </main>
-
-</body>
-
+  </body>
 </html>

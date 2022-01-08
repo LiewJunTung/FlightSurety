@@ -150,6 +150,16 @@ contract FlightSuretyApp {
     }
 
     /**
+     * @dev Get registration fee
+     *
+     * @return registration fee
+     */
+    function registrationFee() external pure returns (uint256) {
+        return REGISTRATION_FEE;
+    }
+
+    /**
+
      * @dev Sets contract operations on/off
      *
      * When operational mode is disabled, all write transactions except for this one will fail
@@ -350,11 +360,38 @@ contract FlightSuretyApp {
         ) = dataContract.getFlight(flightKey);
     }
 
+
+      
+    // Not sure if this should be here, airliners should have their own payment system
+    // Or there should be another contract to handle the purchase of ticket
+    function buyFlight(
+        address payable airlineAddress,
+        string memory flight,
+        uint256 timestamp
+    ) external payable requireIsOperational {
+        bytes32 flightKey = getFlightKey(airlineAddress, flight, timestamp);
+        (, , , , , uint256 ticketPrice) = dataContract.getFlight(flightKey);
+
+        require(msg.value >= ticketPrice, "Not enough funds to buy ticket");
+
+        address payable payableAirlineAddress = payable(airlineAddress);
+        payableAirlineAddress.transfer(ticketPrice);
+        emit BuyFlightSuccessful();
+        //refund
+        
+        if (msg.value > ticketPrice) {
+            address payable senderAddress = payable(msg.sender);
+            senderAddress.transfer(msg.value - ticketPrice);
+        }
+        
+    }
+
     function buyInsurance(
         address airlineAddress,
         string memory flight,
         uint256 timestamp
-    ) external payable requireIsOperational requireFund {
+    ) public payable requireIsOperational requireFund {
+        require(msg.value >= 1 ether, "Not enough funds for insurance");
         bytes32 flightKey = getFlightKey(airlineAddress, flight, timestamp);
         require(
             dataContract.isFlightRegistered(flightKey),
@@ -369,6 +406,7 @@ contract FlightSuretyApp {
         (, , , , , uint256 ticketPrice) = dataContract.getFlight(flightKey);
         uint256 insuredAmount = (ticketPrice * 3) / 2;
         dataContract.buyInsurance(flightKey, msg.sender, insuredAmount);
+        dataContractAddr.transfer(1 ether);
         if (msg.value > 1 ether) {
             //refund
             address payable senderAddress = payable(msg.sender);
@@ -474,6 +512,8 @@ contract FlightSuretyApp {
     // Key = hash(index, flight, timestamp)
     mapping(bytes32 => ResponseInfo) private oracleResponses;
 
+    event BuyFlightSuccessful();
+    event BuyInsuranceSuccessful();
     // Event fired each time an oracle submits a response
     event FlightStatusInfo(
         address airline,

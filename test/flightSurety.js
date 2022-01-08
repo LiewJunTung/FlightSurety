@@ -16,7 +16,7 @@ contract("Flight Surety Tests", async (accounts) => {
   /****************************************************************************************/
 
   it(`(owner) fund contract`, async () => {
-    const result = await config.flightSuretyData.fund({
+    await config.flightSuretyData.fund({
       value: config.initialFund,
     });
     // console.log(result);
@@ -236,7 +236,11 @@ contract("Flight Surety Tests", async (accounts) => {
         config.insuredAmount,
         "insured amount not the same"
       );
-      assert.equal(insuranceClaimStatus.reason.toNumber(), 0, "status code is STATUS_CODE_UNKNOWN");
+      assert.equal(
+        insuranceClaimStatus.reason.toNumber(),
+        0,
+        "status code is STATUS_CODE_UNKNOWN"
+      );
     });
   });
 });

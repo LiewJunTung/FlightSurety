@@ -89,8 +89,12 @@ interface FlightSuretyData {
             bool isRefunded
         );
 
-        function getInsurance(bytes32 flightKey)
+    function getInsurance(bytes32 flightKey)
         external
         view
         returns (bool payoutEligible, uint8 reason);
+
+    function creditInsurees(bytes32 flightKey, address passenger)
+        external
+        payable;
 }
