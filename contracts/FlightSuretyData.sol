@@ -95,6 +95,6 @@ interface FlightSuretyData {
         returns (bool payoutEligible, uint8 reason);
 
     function creditInsurees(bytes32 flightKey, address passenger)
-        external
-        payable;
+        payable
+        external;
 }

@@ -29,23 +29,12 @@ module.exports = async function (deployer, network, accounts) {
     FlightSuretyDataImpl.address
   );
 
-  const oracleIndexes = {};
-  for (let i  =  0; i < oraclesAddresses.length; i++) {
-    const oracle = oraclesAddresses[i]
-    console.log("ORACLE", oracle)
-    oracleIndexes[oracle] = await appContract.registerOracle({
-      from: oracle,
-      value: oracleRegistrationFund,
-    });
-  }
-
   const config = {
     localhost: {
       url: "http://localhost:7545",
       dataAddress: FlightSuretyDataImpl.address,
       appAddress: FlightSuretyApp.address,
-      oracleAddress: oraclesAddresses,
-      oracleIndexes: oracleIndexes
+      oracleAddress: oraclesAddresses
     },
   };
 

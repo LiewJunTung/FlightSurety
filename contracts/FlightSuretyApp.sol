@@ -319,7 +319,7 @@ contract FlightSuretyApp {
         );
         require(isRegistered, "Flight is not registered");
         require(
-            _statusCode != STATUS_CODE_UNKNOWN,
+            _statusCode == STATUS_CODE_UNKNOWN,
             "Flight & insurance status is already determined"
         );
         require(
@@ -360,8 +360,6 @@ contract FlightSuretyApp {
         ) = dataContract.getFlight(flightKey);
     }
 
-
-      
     // Not sure if this should be here, airliners should have their own payment system
     // Or there should be another contract to handle the purchase of ticket
     function buyFlight(
@@ -378,12 +376,11 @@ contract FlightSuretyApp {
         payableAirlineAddress.transfer(ticketPrice);
         emit BuyFlightSuccessful();
         //refund
-        
+
         if (msg.value > ticketPrice) {
             address payable senderAddress = payable(msg.sender);
             senderAddress.transfer(msg.value - ticketPrice);
         }
-        
     }
 
     function buyInsurance(
@@ -430,6 +427,31 @@ contract FlightSuretyApp {
             "Flight must be registered"
         );
         (payoutEligible, reason) = dataContract.getInsurance(flightKey);
+    }
+
+    function creditInsurees(
+        address airlineAddress,
+        string memory flight,
+        uint256 timestamp
+    ) external requireIsOperational {
+        bool payoutEligible;
+        uint8 reason;
+        bool isInsured;
+        uint256 insuredAmount;
+        bool isRefunded;
+        bytes32 flightKey = getFlightKey(airlineAddress, flight, timestamp);
+        (
+            payoutEligible,
+            reason,
+            isInsured,
+            insuredAmount,
+            isRefunded
+        ) = dataContract.getInsuranceClaimStatus(flightKey, msg.sender);
+        require(payoutEligible, "Insurance payout must be eligible");
+        require(isInsured, "Must be insured");
+        require(insuredAmount > 0, "Insurance payout is 0");
+        require(!isRefunded, "Insurance has been refunded");
+        dataContract.creditInsurees(flightKey, msg.sender);
     }
 
     function getInsuranceClaimStatus(
@@ -526,7 +548,8 @@ contract FlightSuretyApp {
         address airline,
         string flight,
         uint256 timestamp,
-        uint8 status
+        uint8 status,
+        uint256 lengthOfResponses
     );
 
     // Event fired when flight status request is submitted
@@ -588,7 +611,13 @@ contract FlightSuretyApp {
 
         // Information isn't considered verified until at least MIN_RESPONSES
         // oracles respond with the *** same *** information
-        emit OracleReport(airline, flight, timestamp, statusCode);
+        emit OracleReport(
+            airline,
+            flight,
+            timestamp,
+            statusCode,
+            oracleResponses[key].responses[statusCode].length
+        );
         if (
             oracleResponses[key].responses[statusCode].length >= MIN_RESPONSES
         ) {

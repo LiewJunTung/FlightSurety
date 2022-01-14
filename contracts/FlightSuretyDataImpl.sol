@@ -361,8 +361,8 @@ contract FlightSuretyDataImpl is FlightSuretyData {
      *  @dev Credits payouts to insurees
      */
     function creditInsurees(bytes32 flightKey, address passenger)
-        external
         payable
+        external
         requireAuthorizedAppContract
         requireIsOperational
         requirePassengerIsInsured(flightKey, passenger)

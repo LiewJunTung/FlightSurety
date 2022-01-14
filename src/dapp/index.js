@@ -23,27 +23,72 @@ import "./flightsurety.css";
         currentAirline: contract.airlines[0],
         flightPrice: "",
         showButton: false,
+        flightStatus: "",
+        showClaimInsuranceButton: false,
+        claimInsuranceButtonText: "",
+        isRefunded: false,
+        isLoading: false,
       },
       mounted: function () {
-        this.displayPrice();
-        this.showButton = contract.checkPurchaseFlight(this.currentAirline);
+        this.checkStatus();
       },
       methods: {
         submitOracle: async function () {
             try {
-                const result = await contract.fetchFlightStatus(this.oracleFlightNumber)
-                alert(result);
+                this.isLoading = true
+                await contract.fetchFlightStatus(this.oracleFlightNumber)
+                await this.checkStatus();
+                this.isLoading = false
             } catch (e) {
                 alert(e.message)
             }
         },
+        checkStatus: async function() {
+          
+          const result = await this.displayPrice();
+          switch (result.statusCode) {
+            case "0": this.flightStatus = ""; break;
+            case "10": this.flightStatus = "ON TIME"; break;
+            case "20": this.flightStatus = "LATE AIRLINE"; break;
+            case "30": this.flightStatus = "LATE WEATHER"; break;
+            case "40": this.flightStatus = "LATE TECHNICAL"; break;
+            case "50": this.flightStatus = "LATE OTHER"; break;
+          }
+          let insuredResponse = await contract.checkInsuranceClaim(this.currentAirline)
+          this.isRefunded = insuredResponse.isRefunded
+          const isInsured = insuredResponse.isInsured
+          const payoutEligible = insuredResponse.payoutEligible
+          // const isPayoutEligible = insuredResponse.
+          // this.showClaimInsuranceButton = insuredResponse
+          console.log(insuredResponse)
+          this.showClaimInsuranceButton = isInsured && payoutEligible
+          if (isInsured && payoutEligible) {
+            if (this.isRefunded){
+              this.claimInsuranceButtonText = "Refunded"
+            } else {
+              this.claimInsuranceButtonText = "Click for refund"
+            }
+          }
+          this.showButton = contract.checkPurchaseFlight(this.currentAirline) && result.statusCode == "0";
+        
+        },
         selectAirline: async function (airline) {
           this.currentAirline = airline;
-          await this.displayPrice();
-          this.showButton = contract.checkPurchaseFlight(this.currentAirline);
+          await this.checkStatus();
         },
         isAirlineSelected: function (airline) {
           return this.currentAirline == airline;
+        },
+        claimInsurance: async function() {
+          this.isLoading = true
+          try {
+            console.log(this.currentAirline)
+            await contract.claimInsurance(this.currentAirline)
+            await this.checkStatus();
+          } catch (e) {
+            console.error(e)
+          }
+          this.isLoading = false
         },
         checkPurchaseFlight: function (airline) {
           const result = contract.checkPurchaseFlight(airline);
@@ -51,6 +96,7 @@ import "./flightsurety.css";
           return result;
         },
         buyTicket: async function () {
+          this.isLoading = true;
           try {
             let isConfirmed = confirm(
               `Flight ${this.currentAirline.flight} (${this.currentAirline.name}) for ${this.flightPrice} Ether?`
@@ -63,7 +109,7 @@ import "./flightsurety.css";
             alert(
               `Flight ${this.currentAirline.flight} (${this.currentAirline.name}) bought: ${this.flightPrice} Ether`
             );
-            this.showButton = contract.checkPurchaseFlight(this.currentAirline);
+            await this.checkStatus();
             let confirmation = confirm(`Buy insurance for 1 Ether?`);
             if (!confirmation) {
               return;
@@ -76,12 +122,14 @@ import "./flightsurety.css";
           } catch (e) {
             alert(e.message);
           }
+          this.isLoading = false;
         },
         displayPrice: async function () {
           let result = await contract.getFlightInfo(this.currentAirline);
 
           console.log(result);
           this.flightPrice = contract.displayPrice(result.ticketPrice); // contract.displayPrice(this.currentAirline.price)
+          return result;
         },
       },
     });

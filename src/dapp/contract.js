@@ -50,12 +50,7 @@ export default class Contract {
 
   async getFlightInfo(airlineInfo) {
     return new Promise((resolve, reject) => {
-      console.log(
-        "AIRLINE ",
-        airlineInfo.address,
-        airlineInfo.flight,
-        this.flightTimestamp
-      );
+      
       this.flightSuretyApp.methods
         .getFlight(
           airlineInfo.address,
@@ -92,7 +87,51 @@ export default class Contract {
 
   checkPurchaseFlight(airlineFlightInfo){
     console.log("flight", this.purchasedFlight, this.purchasedFlight[this.passengers[0]]?.flight)
-     return !this.purchasedFlight[this.passengers[0]]?.includes(airlineFlightInfo);
+    return !this.purchasedFlight[this.passengers[0]]?.includes(airlineFlightInfo);
+  }
+
+  claimInsurance(airlineFlightInfo) {
+    return new Promise((resolve, reject) => {
+      this.flightSuretyApp.methods
+        .creditInsurees(
+          airlineFlightInfo.address,
+          airlineFlightInfo.flight,
+          this.flightTimestamp,
+        ).send(
+          { from: this.passengers[0], },
+          (error, result) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+    })
+    
+  }
+
+  checkInsuranceClaim(airlineFlightInfo){
+    console.log("flight", this.purchasedFlight, this.purchasedFlight[this.passengers[0]]?.flight)
+    return new Promise((resolve, reject) => {
+      this.flightSuretyApp.methods
+        .getInsuranceClaimStatus(
+          airlineFlightInfo.address,
+          airlineFlightInfo.flight,
+          this.flightTimestamp,
+        ).call(
+          { from: this.passengers[0], },
+          (error, result) => {
+            if (error) {
+              console.error(error)
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+    })
+    
   }
 
   async buyTicket(airlineFlightInfo) {
@@ -121,7 +160,7 @@ export default class Contract {
       );
 
       let ticketPrice = flightInfo.ticketPrice;
-      console.log("ticket", ticketPrice)
+      console.log("ticket", this.passengers[0], ticketPrice)
      
       this.flightSuretyApp.methods
         .buyFlight(
@@ -160,28 +199,25 @@ export default class Contract {
       .call({ from: self.owner }, callback);
   }
 
-  fetchFlightStatus(flight) {
+  async fetchFlightStatus(flight) {
     const flightInfo = this.airlines.find((info) => info.flight == flight)
-
-    let self = this;
     let payload = {
-      airline: flightInfo.address,
-      flight: flight,
+      airlineAddress: flightInfo.address,
+      flightNumber: flight,
       timestamp: this.flightTimestamp,
     };
-
-    return new Promise((resolve, reject) => {
-      self.flightSuretyApp.methods
-      .fetchFlightStatus(payload.airline, payload.flight, payload.timestamp)
-      .send({ from: self.passengers[0] }, (error, result) => {
-        if (error) {
-          console.error(error)
-          reject(error);
-        } else {
-          resolve(result);
-        }
-      });
+    const response = await fetch('http://localhost:3001/api', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
     })
+    // const response = await fetch(`http://localhost:3001/oracles-index`)
+    return await response.json()
+  
+      
+    // })
     
     
   }

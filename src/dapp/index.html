@@ -47,14 +47,22 @@
                 <div class="card-body">
                   <h5 class="card-title">{{currentAirline.name}}</h5>
                   <p class="card-text">Flight: {{currentAirline.flight}}</p>
+                  <p class="card-text" v-if="flightStatus">Status: {{flightStatus}}</p>
                   <p class="card-text">Price: {{flightPrice}} Ether</p>
                   
                   <div class="row">
                     <div class="col align-self-end">
                       <button class="btn btn-primary" 
                       v-on:click="buyTicket"
-                      v-if="showButton"
+                      v-if="showButton && !isLoading"
                       >Buy Ticket</button>
+                    </div>
+                    <div class="col align-self-start">
+                      <button class="btn btn-white" 
+                      :disabled="isRefunded"
+                      v-on:click="claimInsurance"
+                      v-if="showClaimInsuranceButton && !isLoading"
+                      >{{claimInsuranceButtonText}}</button>
                     </div>
                   </div>
                   

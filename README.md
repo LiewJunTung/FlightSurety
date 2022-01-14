@@ -52,10 +52,13 @@ Deploy the contents of the ./dapp folder
 * [Web3Js Reference](https://github.com/ethereum/wiki/wiki/JavaScript-API)
 
 # For Testing
-1. Create a Ganache Workspace, 100 accounts with minimum ether of 10000 
+1. Create a Ganache Workspace, 100 accounts with minimum ether of 10000. Make sure that the mnemonic is the same as in the truffle.js
 1. Update truffle.js
 1. Update testConfig.js
 1. Update the contract owner in migrations/deploy_contracts
+1. Open a terminal, run `truffle migrate --reset`
+1. Open a terminal tab, run `npm run dapp`
+1. Open a terminal tab, run `npm run server`
 
 # Rubics
 ## Separation of Concerns, Operational Control and “Fail Fast”
@@ -88,7 +91,7 @@ Deploy the contents of the ./dapp folder
 ## Oracles (Server App)
 | Criteria | Meets Specifications | Completed |
 | --- | --- | --- |
-| Functioning Oracle | Oracle functionality is implemented in the server app. | |
+| Functioning Oracle | Oracle functionality is implemented in the server app. | ✅ |
 | Oracle Initialization | Upon startup, 20+ oracles are registered and their assigned indexes are persisted in memory | ✅ |
-| Oracle Updates | Update flight status requests from client Dapp result in OracleRequest event emitted by Smart Contract that is captured by server (displays on console and handled in code) | |
-| Oracle Functionality | Server will loop through all registered oracles, identify those oracles for which the OracleRequest event applies, and respond by calling into FlightSuretyApp contract with random status code of Unknown (0), On Time (10) or Late Airline (20), Late Weather (30), Late Technical (40), or Late Other (50) | |
+| Oracle Updates | Update flight status requests from client Dapp result in OracleRequest event emitted by Smart Contract that is captured by server (displays on console and handled in code) | ✅ |
+| Oracle Functionality | Server will loop through all registered oracles, identify those oracles for which the OracleRequest event applies, and respond by calling into FlightSuretyApp contract with random status code of Unknown (0), On Time (10) or Late Airline (20), Late Weather (30), Late Technical (40), or Late Other (50) | ✅ |

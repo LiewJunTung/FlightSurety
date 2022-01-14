@@ -215,11 +215,11 @@ contract("Flight Surety Tests", async (accounts) => {
 
   describe("(passenger) buy insurance", async () => {
     it("can buy insurance", async () => {
-      const buyInsurance = await config.flightSuretyApp.buyInsurance(
+      await config.flightSuretyApp.buyInsurance(
         config.firstAirline,
         config.flight,
         config.timestamp,
-        { from: config.passenger, value: 1 }
+        { from: config.passenger, value: web3.utils.toWei("1", "ether") }
       );
       const insuranceClaimStatus =
         await config.flightSuretyApp.getInsuranceClaimStatus(
@@ -228,9 +228,14 @@ contract("Flight Surety Tests", async (accounts) => {
           config.timestamp,
           { from: config.passenger }
         );
-      // console.log(web3.utils.fromWei(insuranceClaimStatus.insuredAmount))
-      assert.isTrue(insuranceClaimStatus.isInsured, "not insured");
 
+      console.log(
+        "Insurance Claim Status ",
+        insuranceClaimStatus.isInsured,
+        web3.utils.fromWei(insuranceClaimStatus.insuredAmount)
+      );
+      assert.isTrue(insuranceClaimStatus.isInsured, "not insured");
+      console.log(insuranceClaimStatus);
       assert.equal(
         web3.utils.fromWei(insuranceClaimStatus.insuredAmount),
         config.insuredAmount,
@@ -242,5 +247,19 @@ contract("Flight Surety Tests", async (accounts) => {
         "status code is STATUS_CODE_UNKNOWN"
       );
     });
+
+  // it("passenger can withdrawl money", async () => {
+
+  //   const initialBalance = await web3.eth.getBalance(config.passenger);
+  //   const result = await config.flightSuretyApp.creditInsurees(
+  //     config.firstAirline,
+  //     config.flight,
+  //     config.timestamp,
+  //     { from: config.passenger }
+  //   );
+  //   const afterBalance = await web3.eth.getBalance(config.passenger);
+  //   console.log(result, initialBalance, afterBalance)
+    
+  // })
   });
 });
